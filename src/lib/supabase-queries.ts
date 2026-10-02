@@ -280,18 +280,18 @@ export const saveContactMessage = async (messageData: {
   message: string
   message_type?: string
 }) => {
-  if (!supabase) return { data: null, error: new Error('Supabase not configured') }
+  if (!supabase) return { error: new Error('Supabase not configured') }
 
-  const { data, error } = await supabase
+  // Visitors may insert but not read messages (see supabase/admin_migration.sql),
+  // so nothing is selected back — a .select() here would fail under RLS.
+  const { error } = await supabase
     .from('contact_messages')
     .insert([{
       ...messageData,
       status: 'new',
     }])
-    .select()
-    .single()
 
-  return { data, error }
+  return { error }
 }
 
 export const getContactMessages = async (filters?: {
