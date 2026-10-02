@@ -4,6 +4,7 @@ import {
   Link,
   createRootRouteWithContext,
   useRouter,
+  useRouterState,
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
@@ -39,7 +40,7 @@ function NotFoundComponent() {
   );
 }
 
-function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
+function ErrorComponent({ error, reset }: { error: unknown; reset: () => void }) {
   console.error(error);
   const router = useRouter();
   useEffect(() => {
@@ -132,6 +133,9 @@ function RootShell({ children }: { children: ReactNode }) {
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   const [showSplash, setShowSplash] = useState(true);
+  const isAdmin = useRouterState({
+    select: (s) => s.location.pathname.startsWith("/admin"),
+  });
 
   useEffect(() => {
     const splashShown = sessionStorage.getItem("splashShown");
@@ -148,15 +152,22 @@ function RootComponent() {
   return (
     <QueryClientProvider client={queryClient}>
       <CartProvider>
-        {showSplash && <WelcomeSplash onComplete={handleSplashComplete} />}
-        <div className="flex min-h-screen flex-col">
-          <Navbar />
-          <main className="flex-1">
-            {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-            <Outlet />
-          </main>
-          <Footer />
-        </div>
+        {isAdmin ? (
+          // The admin panel has its own layout (src/routes/admin/route.tsx).
+          <Outlet />
+        ) : (
+          <>
+            {showSplash && <WelcomeSplash onComplete={handleSplashComplete} />}
+            <div className="flex min-h-screen flex-col">
+              <Navbar />
+              <main className="flex-1">
+                {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
+                <Outlet />
+              </main>
+              <Footer />
+            </div>
+          </>
+        )}
         <Toaster position="top-center" />
       </CartProvider>
     </QueryClientProvider>

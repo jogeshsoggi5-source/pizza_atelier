@@ -22,7 +22,10 @@ export function Navbar() {
   return (
     <header className="sticky top-0 z-50 border-b border-border/40 bg-background/95 backdrop-blur-lg shadow-sm">
       <div className="container mx-auto flex h-16 items-center justify-between px-4 md:h-20">
-        <Link to="/" className="flex items-baseline gap-1 hover:opacity-80 transition-opacity">
+        <Link
+          to="/"
+          className="flex items-baseline gap-1 hover:opacity-80 transition-opacity"
+        >
           <span className="font-logo text-2xl font-semibold tracking-wide md:text-3xl">
             Pizza <span className="text-primary">Atelier</span>
           </span>
@@ -44,8 +47,14 @@ export function Navbar() {
         </nav>
 
         <div className="flex items-center gap-3 sm:gap-4">
-          <Button asChild variant="ghost" size="icon" className="relative hover:bg-muted/60 transition-colors" aria-label="Shopping cart">
-            <Link to="/order">
+          <Button
+            asChild
+            variant="ghost"
+            size="icon"
+            className="relative hover:bg-muted/60 transition-colors"
+            aria-label="Shopping cart"
+          >
+            <Link to="/order" search={{ view: "cart" }}>
               <ShoppingBag className="h-5 w-5" />
               {count > 0 && (
                 <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground animate-pulse">
@@ -55,13 +64,21 @@ export function Navbar() {
             </Link>
           </Button>
 
-          <Button asChild className="hidden sm:inline-flex bg-primary hover:bg-primary/90 transition-colors font-semibold">
+          <Button
+            asChild
+            className="hidden sm:inline-flex bg-primary hover:bg-primary/90 transition-colors font-semibold"
+          >
             <Link to="/order">Order Online</Link>
           </Button>
 
           <Sheet open={open} onOpenChange={setOpen}>
             <SheetTrigger asChild>
-              <Button variant="ghost" size="icon" className="lg:hidden" aria-label="Open menu">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="lg:hidden"
+                aria-label="Open menu"
+              >
                 <Menu className="h-5 w-5" />
               </Button>
             </SheetTrigger>

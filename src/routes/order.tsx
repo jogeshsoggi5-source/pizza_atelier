@@ -1,5 +1,12 @@
 import { Link, createFileRoute } from "@tanstack/react-router";
-import { CheckCircle2, Minus, Plus, ShoppingBag, Trash2 } from "lucide-react";
+import {
+  ArrowLeft,
+  CheckCircle2,
+  Minus,
+  Plus,
+  ShoppingBag,
+  Trash2,
+} from "lucide-react";
 import { useState, type FormEvent } from "react";
 import { toast } from "sonner";
 
@@ -8,16 +15,22 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PizzaCard } from "@/components/site/PizzaCard";
 import { useCart } from "@/lib/cart-context";
+import { useSoldOut, useStoreSettings } from "@/lib/store-status";
+import { placeOrder } from "@/lib/supabase-queries";
 import {
   categoryLabels,
   formatPrice,
+  categoryNotes,
+  isSizedCategory,
+  menuCategoryOrder,
   menuItems,
-  signaturePizzas,
-  type MenuCategory,
+  pizzaSizes,
   type MenuItem,
 } from "@/lib/menu-data";
 
 export const Route = createFileRoute("/order")({
+  validateSearch: (search: Record<string, unknown>): { view?: "cart" } =>
+    search.view === "cart" ? { view: "cart" } : {},
   head: () => ({
     meta: [
       { title: "Order Online — Pizza Atelier" },
@@ -36,23 +49,49 @@ export const Route = createFileRoute("/order")({
   component: OrderPage,
 });
 
-const otherCategories: MenuCategory[] = ["sides", "drinks", "desserts"];
-const DELIVERY_FEE = 3;
+const categories = menuCategoryOrder.filter((c) =>
+  menuItems.some((i) => i.category === c),
+);
+const DELIVERY_FEE = 49;
+const imageById = new Map(menuItems.map((item) => [item.id, item.image]));
 
 function AddRow({ item }: { item: MenuItem }) {
   const { addItem } = useCart();
+  const soldOut = useSoldOut().has(item.id);
   return (
-    <div className="flex items-center justify-between gap-4 rounded-lg bg-card p-4 shadow-card">
-      <div>
+    <div
+      className={`flex items-center gap-3 rounded-lg bg-card p-3 shadow-card sm:gap-4 sm:p-4 ${soldOut ? "opacity-60" : ""}`}
+    >
+      {item.image && (
+        <img
+          src={item.image}
+          alt={item.name}
+          loading="lazy"
+          className="h-14 w-14 shrink-0 rounded-md object-cover sm:h-16 sm:w-16"
+        />
+      )}
+      <div className="min-w-0 flex-1">
         <div className="flex items-baseline gap-2">
           <p className="font-medium">{item.name}</p>
-          <span className="text-sm font-semibold text-primary">{formatPrice(item.price)}</span>
+          <span className="text-sm font-semibold text-primary">
+            {formatPrice(item.price)}
+          </span>
+          {soldOut && (
+            <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+              Sold out
+            </span>
+          )}
         </div>
-        <p className="mt-0.5 text-xs text-muted-foreground">{item.description}</p>
+        {item.description && (
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            {item.description}
+          </p>
+        )}
       </div>
       <Button
         size="icon"
         variant="outline"
+        disabled={soldOut}
         aria-label={`Add ${item.name} to order`}
         onClick={() => {
           addItem({ id: item.id, name: item.name, price: item.price });
@@ -66,16 +105,34 @@ function AddRow({ item }: { item: MenuItem }) {
 }
 
 function OrderPage() {
+  const { view } = Route.useSearch();
+  // The navbar cart icon opens ?view=cart: on mobile, show only the order summary.
+  const cartOnly = view === "cart";
   const { items, updateQty, removeItem, clear, total, count } = useCart();
-  const [fulfillment, setFulfillment] = useState<"delivery" | "pickup">("delivery");
+  const [fulfillment, setFulfillment] = useState<"delivery" | "pickup">(
+    "delivery",
+  );
   const [placedOrder, setPlacedOrder] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const { data: settings } = useStoreSettings();
+  const ordersPaused = settings?.accepting_orders === false;
+  const soldOut = useSoldOut();
 
   const grandTotal = total + (fulfillment === "delivery" ? DELIVERY_FEE : 0);
 
-  const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (ordersPaused) {
+      toast.error("We're not taking online orders right now.");
+      return;
+    }
     if (items.length === 0) {
       toast.error("Your cart is empty — add something delicious first!");
+      return;
+    }
+    const unavailable = items.find((i) => soldOut.has(i.productId ?? i.id));
+    if (unavailable) {
+      toast.error(`${unavailable.name} just sold out — please remove it from your order.`);
       return;
     }
     const form = new FormData(e.currentTarget);
@@ -86,7 +143,34 @@ function OrderPage() {
       toast.error("Please fill in all required fields.");
       return;
     }
-    const orderNumber = `PA-${Math.floor(1000 + Math.random() * 9000)}`;
+    const orderNumber = `PA-${Date.now().toString(36).slice(-6).toUpperCase()}`;
+    const deliveryFee = fulfillment === "delivery" ? DELIVERY_FEE : 0;
+    setSubmitting(true);
+    const { error } = await placeOrder({
+      order_number: orderNumber,
+      customer_name: name,
+      customer_phone: phone,
+      items: items.map((item) => ({
+        name: item.name,
+        size: item.size
+          ? pizzaSizes.find((s) => s.id === item.size)?.label
+          : undefined,
+        extras: item.extras,
+        qty: item.qty,
+        unit_price: item.price,
+      })),
+      total_amount: total,
+      delivery_fee: deliveryFee,
+      grand_total: total + deliveryFee,
+      fulfillment_type: fulfillment,
+      delivery_address: fulfillment === "delivery" ? address : undefined,
+    });
+    setSubmitting(false);
+    if (error) {
+      console.error("Failed to place order:", error);
+      toast.error("We couldn't place your order. Please try again or call us.");
+      return;
+    }
     setPlacedOrder(orderNumber);
     clear();
   };
@@ -96,10 +180,14 @@ function OrderPage() {
       <div className="container mx-auto flex min-h-[60vh] items-center justify-center px-4 py-20">
         <div className="max-w-md text-center">
           <CheckCircle2 className="mx-auto h-16 w-16 text-secondary" />
-          <h1 className="mt-6 font-display text-3xl font-bold md:text-4xl">Order Confirmed!</h1>
+          <h1 className="mt-6 font-display text-3xl font-bold md:text-4xl">
+            Order Confirmed!
+          </h1>
           <p className="mt-3 text-muted-foreground">
-            Your order <span className="font-semibold text-foreground">{placedOrder}</span> is
-            in the oven. {fulfillment === "delivery"
+            Your order{" "}
+            <span className="font-semibold text-foreground">{placedOrder}</span>{" "}
+            is in the oven.{" "}
+            {fulfillment === "delivery"
               ? "It will be at your door in about 30–40 minutes."
               : "It will be ready for pickup in about 20 minutes."}
           </p>
@@ -115,37 +203,64 @@ function OrderPage() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-16 md:py-24">
-      <div className="mx-auto max-w-xl text-center">
+    <div
+      className={`container mx-auto px-4 ${cartOnly ? "py-6 lg:py-24" : "py-16 md:py-24"}`}
+    >
+      {cartOnly && (
+        <Link
+          to="/order"
+          className="mb-4 inline-flex items-center gap-1.5 text-sm font-medium text-primary lg:hidden"
+        >
+          <ArrowLeft className="h-4 w-4" /> Add more items
+        </Link>
+      )}
+      <div
+        className={`mx-auto max-w-xl text-center ${cartOnly ? "hidden lg:block" : ""}`}
+      >
         <p className="eyebrow">Order Online</p>
-        <h1 className="mt-3 font-display text-4xl font-bold md:text-6xl">Fresh to Your Door</h1>
+        <h1 className="mt-3 font-display text-4xl font-bold md:text-6xl">
+          Fresh to Your Door
+        </h1>
         <p className="mt-4 text-muted-foreground">
           Build your order below, then check out for delivery or pickup.
         </p>
       </div>
 
-      <div className="mt-14 grid gap-10 lg:grid-cols-[1fr_380px]">
+      <div
+        className={`grid grid-cols-1 gap-10 lg:mt-14 lg:grid-cols-[1fr_380px] ${cartOnly ? "" : "mt-14"}`}
+      >
         {/* Menu */}
-        <div>
-          <h2 className="font-display text-2xl font-bold">{categoryLabels.signature}</h2>
-          <div className="mt-6 grid gap-6 sm:grid-cols-2">
-            {signaturePizzas.map((pizza) => (
-              <PizzaCard key={pizza.id} item={pizza} />
-            ))}
-          </div>
-
-          {otherCategories.map((category) => (
-            <div key={category} className="mt-10">
-              <h2 className="font-display text-2xl font-bold">{categoryLabels[category]}</h2>
-              <div className="mt-5 grid gap-3">
-                {menuItems
-                  .filter((item) => item.category === category)
-                  .map((item) => (
-                    <AddRow key={item.id} item={item} />
-                  ))}
+        <div className={cartOnly ? "hidden lg:block" : undefined}>
+          {categories.map((category, index) => {
+            const items = menuItems.filter(
+              (item) => item.category === category,
+            );
+            return (
+              <div key={category} className={index > 0 ? "mt-10" : undefined}>
+                <h2 className="font-display text-2xl font-bold">
+                  {categoryLabels[category]}
+                </h2>
+                {categoryNotes[category] && (
+                  <p className="mt-1 text-sm font-medium text-primary">
+                    {categoryNotes[category]}
+                  </p>
+                )}
+                {isSizedCategory(category) ? (
+                  <div className="mt-5 grid grid-cols-2 gap-3 sm:gap-6">
+                    {items.map((pizza) => (
+                      <PizzaCard key={pizza.id} item={pizza} />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="mt-5 grid gap-3">
+                    {items.map((item) => (
+                      <AddRow key={item.id} item={item} />
+                    ))}
+                  </div>
+                )}
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
 
         {/* Cart & checkout */}
@@ -155,7 +270,9 @@ function OrderPage() {
               <ShoppingBag className="h-5 w-5 text-primary" />
               <h2 className="font-display text-xl font-bold">Your Order</h2>
               {count > 0 && (
-                <span className="ml-auto text-sm text-muted-foreground">{count} item{count !== 1 ? "s" : ""}</span>
+                <span className="ml-auto text-sm text-muted-foreground">
+                  {count} item{count !== 1 ? "s" : ""}
+                </span>
               )}
             </div>
 
@@ -166,11 +283,38 @@ function OrderPage() {
             ) : (
               <ul className="mt-5 space-y-4">
                 {items.map((item) => (
-                  <li key={item.id} className="flex items-center justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-medium">{item.name}</p>
+                  <li key={item.id} className="flex items-center gap-3">
+                    <div className="h-14 w-14 shrink-0 overflow-hidden rounded-lg bg-muted">
+                      {imageById.get(item.productId ?? item.id) ? (
+                        <img
+                          src={imageById.get(item.productId ?? item.id)}
+                          alt={item.name}
+                          loading="lazy"
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        <div className="flex h-full w-full items-center justify-center">
+                          <ShoppingBag className="h-5 w-5 text-muted-foreground" />
+                        </div>
+                      )}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="line-clamp-2 text-sm font-medium leading-snug">
+                        {item.name}
+                      </p>
                       <p className="text-xs text-muted-foreground">
+                        {item.size && (
+                          <span className="font-medium text-foreground">
+                            {pizzaSizes.find((s) => s.id === item.size)?.label}{" "}
+                            ·{" "}
+                          </span>
+                        )}
                         {formatPrice(item.price)} each
+                        {item.extras && item.extras.length > 0 && (
+                          <span className="block">
+                            + {item.extras.join(", ")}
+                          </span>
+                        )}
                       </p>
                     </div>
                     <div className="flex items-center gap-1.5">
@@ -183,7 +327,9 @@ function OrderPage() {
                       >
                         <Minus className="h-3 w-3" />
                       </Button>
-                      <span className="w-6 text-center text-sm font-semibold">{item.qty}</span>
+                      <span className="w-6 text-center text-sm font-semibold">
+                        {item.qty}
+                      </span>
                       <Button
                         size="icon"
                         variant="outline"
@@ -225,6 +371,13 @@ function OrderPage() {
               </Button>
             </div>
 
+            {ordersPaused && (
+              <p className="mt-6 rounded-lg bg-accent p-3 text-sm font-medium text-accent-foreground">
+                {settings?.paused_message ||
+                  "Online ordering is paused right now. Please call us to order."}
+              </p>
+            )}
+
             <form onSubmit={handleSubmit} className="mt-6 space-y-4">
               <div className="space-y-1.5">
                 <Label htmlFor="name">Name *</Label>
@@ -232,34 +385,49 @@ function OrderPage() {
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="phone">Phone *</Label>
-                <Input id="phone" name="phone" type="tel" placeholder="+1 (555) 000-0000" required />
+                <Input
+                  id="phone"
+                  name="phone"
+                  type="tel"
+                  placeholder="+91 98765 43210"
+                  required
+                />
               </div>
               {fulfillment === "delivery" && (
                 <div className="space-y-1.5">
                   <Label htmlFor="address">Delivery Address *</Label>
-                  <Input id="address" name="address" placeholder="Street, city, zip" />
+                  <Input
+                    id="address"
+                    name="address"
+                    placeholder="Street, city, zip"
+                  />
                 </div>
               )}
 
               <div className="space-y-1.5 border-t pt-4 text-sm">
                 <div className="flex justify-between text-muted-foreground">
                   <span>Subtotal</span>
-                  <span>${total.toFixed(2)}</span>
+                  <span>{formatPrice(total)}</span>
                 </div>
                 {fulfillment === "delivery" && (
                   <div className="flex justify-between text-muted-foreground">
                     <span>Delivery fee</span>
-                    <span>${DELIVERY_FEE.toFixed(2)}</span>
+                    <span>{formatPrice(DELIVERY_FEE)}</span>
                   </div>
                 )}
                 <div className="flex justify-between text-base font-semibold">
                   <span>Total</span>
-                  <span>${grandTotal.toFixed(2)}</span>
+                  <span>{formatPrice(grandTotal)}</span>
                 </div>
               </div>
 
-              <Button type="submit" size="lg" className="w-full">
-                Place Order — ${grandTotal.toFixed(2)}
+              <Button
+                type="submit"
+                size="lg"
+                className="w-full"
+                disabled={submitting || ordersPaused}
+              >
+                {submitting ? "Placing order…" : `Place Order — ${formatPrice(grandTotal)}`}
               </Button>
               <p className="text-center text-xs text-muted-foreground">
                 Pay at the door or on pickup. Online payment coming soon.

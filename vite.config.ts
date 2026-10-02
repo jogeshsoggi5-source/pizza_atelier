@@ -12,4 +12,9 @@ export default defineConfig({
     // nitro/vite builds from this
     server: { entry: "server" },
   },
+  // Honor PORT (set by local preview tools) so the dev server binds where the preview expects.
+  // Ignored inside the Lovable sandbox, which always forces 8080.
+  vite: process.env.PORT
+    ? { server: { port: Number(process.env.PORT), strictPort: true } }
+    : {},
 });

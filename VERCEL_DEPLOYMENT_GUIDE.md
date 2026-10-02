@@ -93,6 +93,25 @@ npm run dev
 2. Check Vercel deployment logs for build errors
 3. Test locally with `npm run build && npm run preview`
 
+### Every page shows "This page didn't load" (`jsxDEV is not a function`)
+
+`NODE_ENV` is set somewhere (a Vercel environment variable or `.env`). Delete it —
+Vite sets it automatically, and a manual `NODE_ENV=development` makes the production
+build use React's dev runtime, which crashes every server-rendered page.
+
+### Supabase not connecting after changing env vars
+
+`VITE_*` variables are baked in at **build time**. After adding or changing them in
+Vercel, redeploy (Deployments → ⋯ → Redeploy) — saving them alone is not enough.
+
+### How the build targets Vercel
+
+The app is server-rendered (TanStack Start + Nitro). Nitro detects Vercel during the
+build and writes `.vercel/output` (static assets + an SSR function). `vercel.json`
+sets `"framework": null` so Vercel uses that output instead of looking for `dist/`.
+Locally, `npm run build` targets Cloudflare by default; run `VERCEL=1 npm run build`
+to reproduce the Vercel build.
+
 ### Build Fails
 
 Check the Vercel build logs for error messages. Common issues:

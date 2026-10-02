@@ -92,7 +92,10 @@ function Index() {
         <HeroSlideshow onSlideChange={setHeroCaption} />
         <div className="overlay-hero absolute inset-0" />
         <div className="relative z-10 mx-auto max-w-4xl px-4 py-24 text-center">
-          <p key={heroCaption} className="eyebrow animate-slide-up tracking-widest">
+          <p
+            key={heroCaption}
+            className="eyebrow animate-slide-up tracking-widest"
+          >
             {heroCaption} • Handcrafted • Brooklyn
           </p>
           <h1 className="animate-slide-up-delay-1 mt-6 font-display text-5xl font-bold leading-tight text-cream md:text-8xl md:leading-tight">
@@ -122,11 +125,10 @@ function Index() {
             Signature Pizzas
           </h2>
           <p className="mt-4 text-muted-foreground">
-            Six masterpieces, each composed with premium ingredients and fired
-            over oak.
+            A few favourites from our oven, in Regular, Medium and Large.
           </p>
         </div>
-        <div className="mt-12 grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="mt-12 grid grid-cols-2 gap-3 sm:gap-8 lg:grid-cols-3">
           {signaturePizzas.map((pizza) => (
             <PizzaCard key={pizza.id} item={pizza} />
           ))}

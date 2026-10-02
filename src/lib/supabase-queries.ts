@@ -109,30 +109,36 @@ export const updateCustomer = async (id: string, updates: any) => {
 // ORDER QUERIES
 // ============================================
 
-export const createOrder = async (orderData: {
-  customer_id: string
+export interface OrderLine {
+  name: string
+  size?: string
+  extras?: string[]
+  qty: number
+  unit_price: number
+}
+
+/**
+ * Places an order from the public site. Visitors may insert but not read orders
+ * (see supabase/admin_migration.sql), so nothing is selected back.
+ */
+export const placeOrder = async (order: {
   order_number: string
+  customer_name: string
+  customer_phone: string
+  items: OrderLine[]
   total_amount: number
-  delivery_fee?: number
+  delivery_fee: number
   grand_total: number
   fulfillment_type: 'delivery' | 'pickup'
   delivery_address?: string
-  special_instructions?: string
-  status?: string
 }) => {
-  if (!supabase) return { data: null, error: new Error('Supabase not configured') }
+  if (!supabase) return { error: new Error('Supabase not configured') }
 
-  const { data, error } = await supabase
+  const { error } = await supabase
     .from('orders')
-    .insert([{
-      ...orderData,
-      status: orderData.status || 'pending',
-      delivery_fee: orderData.delivery_fee || 0,
-    }])
-    .select()
-    .single()
+    .insert([{ ...order, status: 'pending' }])
 
-  return { data, error }
+  return { error }
 }
 
 export const createOrderItems = async (items: {
@@ -216,18 +222,16 @@ export const createReservation = async (reservationData: {
   special_requests?: string
   status?: string
 }) => {
-  if (!supabase) return { data: null, error: new Error('Supabase not configured') }
+  if (!supabase) return { error: new Error('Supabase not configured') }
 
-  const { data, error } = await supabase
+  const { error } = await supabase
     .from('reservations')
     .insert([{
       ...reservationData,
       status: reservationData.status || 'pending',
     }])
-    .select()
-    .single()
 
-  return { data, error }
+  return { error }
 }
 
 export const getReservations = async (filters?: {
@@ -387,6 +391,6 @@ export const getAverageRating = async () => {
     return { data: 0, error }
   }
 
-  const average = data.reduce((sum, row) => sum + row.rating, 0) / data.length
+  const average = data.reduce((sum: number, row: { rating: number }) => sum + row.rating, 0) / data.length
   return { data: Math.round(average * 10) / 10, error: null }
 }

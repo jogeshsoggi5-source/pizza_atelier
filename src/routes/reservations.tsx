@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { createReservation } from "@/lib/supabase-queries";
 import {
   Select,
   SelectContent,
@@ -39,8 +40,9 @@ const timeSlots = [
 
 function ReservationsPage() {
   const [submitted, setSubmitted] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
-  const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const form = new FormData(e.currentTarget);
     const name = String(form.get("name") ?? "").trim();
@@ -48,6 +50,21 @@ function ReservationsPage() {
     const date = String(form.get("date") ?? "").trim();
     if (!name || !email || !date) {
       toast.error("Please fill in your name, email, and date.");
+      return;
+    }
+    setSubmitting(true);
+    const { error } = await createReservation({
+      customer_name: name,
+      customer_email: email,
+      reservation_date: date,
+      reservation_time: String(form.get("time") ?? "19:00"),
+      party_size: Number(form.get("guests") ?? 2),
+      special_requests: String(form.get("notes") ?? "").trim() || undefined,
+    });
+    setSubmitting(false);
+    if (error) {
+      console.error("Failed to save reservation:", error);
+      toast.error("We couldn't save your reservation. Please try again or call us.");
       return;
     }
     setSubmitted(true);
@@ -154,8 +171,8 @@ function ReservationsPage() {
           />
         </div>
 
-        <Button type="submit" size="lg" className="w-full">
-          Request Reservation
+        <Button type="submit" size="lg" className="w-full" disabled={submitting}>
+          {submitting ? "Sending…" : "Request Reservation"}
         </Button>
         <p className="text-center text-xs text-muted-foreground">
           We'll confirm by email within the hour during opening times.
