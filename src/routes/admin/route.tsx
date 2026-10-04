@@ -9,6 +9,7 @@ import {
   LayoutDashboard,
   Loader2,
   LogOut,
+  Mail,
   Settings,
   ShieldAlert,
   ShoppingBag,
@@ -28,6 +29,7 @@ import {
   signOut,
   useAdminSession,
   useAdminStoreSettings,
+  useMessages,
   useOrders,
   useReservations,
   useUpdateStoreSettings,
@@ -52,6 +54,7 @@ type NavLink = {
     | "/admin/orders"
     | "/admin/kitchen"
     | "/admin/reservations"
+    | "/admin/messages"
     | "/admin/analytics"
     | "/admin/customers"
     | "/admin/menu"
@@ -59,7 +62,7 @@ type NavLink = {
   label: string;
   icon: typeof LayoutDashboard;
   exact?: boolean;
-  badge?: "orders" | "reservations";
+  badge?: "orders" | "reservations" | "messages";
 };
 
 const navGroups: { title: string; links: NavLink[] }[] = [
@@ -70,6 +73,7 @@ const navGroups: { title: string; links: NavLink[] }[] = [
       { to: "/admin/orders", label: "Orders", icon: ShoppingBag, badge: "orders" },
       { to: "/admin/kitchen", label: "Kitchen board", icon: ChefHat },
       { to: "/admin/reservations", label: "Reservations", icon: CalendarCheck, badge: "reservations" },
+      { to: "/admin/messages", label: "Messages", icon: Mail, badge: "messages" },
     ],
   },
   {
@@ -131,11 +135,13 @@ function AdminLayout() {
 function AdminShell({ email }: { email: string }) {
   const { data: orders, dataUpdatedAt } = useOrders();
   const { data: reservations } = useReservations();
+  const { data: messages } = useMessages();
   const { soundOn, toggleSound, pendingCount } = useNewOrderAlerts(orders);
   const today = todayISO();
   const pendingReservations =
     reservations?.filter((r) => r.status === "pending" && r.reservation_date >= today).length ?? 0;
-  const badges = { orders: pendingCount, reservations: pendingReservations };
+  const newMessages = messages?.filter((m) => m.status === "new").length ?? 0;
+  const badges = { orders: pendingCount, reservations: pendingReservations, messages: newMessages };
 
   return (
     <div className="min-h-screen bg-[oklch(0.975_0.008_80)] md:flex">

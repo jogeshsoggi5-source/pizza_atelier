@@ -1,7 +1,11 @@
 import { Link } from "@tanstack/react-router";
-import { Facebook, Instagram, Twitter } from "lucide-react";
+
+import { SocialLinks } from "@/components/site/SocialLinks";
+import { addressLines, phoneHref, useSiteSettings } from "@/lib/store-status";
 
 export function Footer() {
+  const settings = useSiteSettings();
+
   return (
     <footer className="bg-charcoal text-cream">
       <div className="container mx-auto grid gap-10 px-4 py-14 md:grid-cols-4">
@@ -13,35 +17,12 @@ export function Footer() {
             Where artisan pizza meets creativity. Handcrafted, wood-fired, and made with
             locally sourced ingredients.
           </p>
-          <div className="mt-5 flex gap-3">
-            <a
-              href="https://instagram.com"
-              target="_blank"
-              rel="noreferrer"
-              aria-label="Instagram"
-              className="rounded-full border border-cream/20 p-2 transition-colors hover:border-gold hover:text-gold"
-            >
-              <Instagram className="h-4 w-4" />
-            </a>
-            <a
-              href="https://facebook.com"
-              target="_blank"
-              rel="noreferrer"
-              aria-label="Facebook"
-              className="rounded-full border border-cream/20 p-2 transition-colors hover:border-gold hover:text-gold"
-            >
-              <Facebook className="h-4 w-4" />
-            </a>
-            <a
-              href="https://twitter.com"
-              target="_blank"
-              rel="noreferrer"
-              aria-label="Twitter"
-              className="rounded-full border border-cream/20 p-2 transition-colors hover:border-gold hover:text-gold"
-            >
-              <Twitter className="h-4 w-4" />
-            </a>
-          </div>
+          <SocialLinks
+            settings={settings}
+            className="mt-5 flex gap-3"
+            linkClassName="rounded-full border border-cream/20 p-2 transition-colors hover:border-gold hover:text-gold"
+            iconClassName="h-4 w-4"
+          />
         </div>
 
         <div>
@@ -58,24 +39,27 @@ export function Footer() {
         <div>
           <h3 className="font-display text-lg">Opening Hours</h3>
           <ul className="mt-4 space-y-2 text-sm text-cream/70">
-            <li className="flex justify-between gap-4"><span>Mon – Thu</span><span>11:30 – 22:00</span></li>
-            <li className="flex justify-between gap-4"><span>Fri – Sat</span><span>11:30 – 23:00</span></li>
-            <li className="flex justify-between gap-4"><span>Sunday</span><span>12:00 – 21:30</span></li>
+            {settings.opening_hours.map((row) => (
+              <li key={row.days} className="flex justify-between gap-4">
+                <span>{row.days}</span>
+                <span>{row.hours}</span>
+              </li>
+            ))}
           </ul>
         </div>
 
         <div>
           <h3 className="font-display text-lg">Contact</h3>
           <ul className="mt-4 space-y-2 text-sm text-cream/70">
-            <li>214 Artisan Lane, Brooklyn, NY</li>
+            <li>{addressLines(settings.address).join(", ")}</li>
             <li>
-              <a href="tel:+15550123456" className="transition-colors hover:text-gold">
-                +1 (555) 012-3456
+              <a href={phoneHref(settings.phone)} className="transition-colors hover:text-gold">
+                {settings.phone}
               </a>
             </li>
             <li>
-              <a href="mailto:hello@pizzaatelier.com" className="transition-colors hover:text-gold">
-                hello@pizzaatelier.com
+              <a href={`mailto:${settings.email}`} className="transition-colors hover:text-gold">
+                {settings.email}
               </a>
             </li>
           </ul>

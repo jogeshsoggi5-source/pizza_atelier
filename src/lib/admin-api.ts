@@ -5,7 +5,7 @@ import { toast } from "sonner";
 
 import {
   fetchSoldOutIds,
-  fetchStoreSettings,
+  fetchStoreSettingsOrThrow,
   soldOutKey,
   storeSettingsKey,
   type StoreSettings,
@@ -191,8 +191,47 @@ export async function setReservationStatus(id: string, status: ReservationStatus
   if (error) throw error;
 }
 
+export const messageStatuses = ["new", "read", "replied"] as const;
+export type MessageStatus = (typeof messageStatuses)[number];
+
+export interface ContactMessage {
+  id: string;
+  name: string;
+  email: string;
+  phone: string | null;
+  subject: string | null;
+  message: string;
+  message_type: string | null;
+  status: MessageStatus;
+  created_at: string;
+}
+
+export async function fetchMessages(): Promise<ContactMessage[]> {
+  const { data, error } = await requireClient()
+    .from("contact_messages")
+    .select("id, name, email, phone, subject, message, message_type, status, created_at")
+    .order("created_at", { ascending: false })
+    .limit(500);
+  if (error) throw error;
+  return (data ?? []).map((m: ContactMessage) => ({ ...m, created_at: asUtc(m.created_at) }));
+}
+
+export async function setMessageStatus(id: string, status: MessageStatus) {
+  const { error } = await requireClient()
+    .from("contact_messages")
+    .update({ status, replied_at: status === "replied" ? new Date().toISOString() : null })
+    .eq("id", id);
+  if (error) throw error;
+}
+
+export async function deleteMessage(id: string) {
+  const { error } = await requireClient().from("contact_messages").delete().eq("id", id);
+  if (error) throw error;
+}
+
 const ordersKey = ["admin", "orders"];
 const reservationsKey = ["admin", "reservations"];
+const messagesKey = ["admin", "messages"];
 
 export function useOrders() {
   return useQuery({ queryKey: ordersKey, queryFn: fetchOrders, refetchInterval: 15_000 });
@@ -226,8 +265,35 @@ export function useReservationStatusMutation() {
   });
 }
 
+export function useMessages() {
+  return useQuery({ queryKey: messagesKey, queryFn: fetchMessages, refetchInterval: 60_000 });
+}
+
+export function useMessageStatusMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, status }: { id: string; status: MessageStatus }) =>
+      setMessageStatus(id, status),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: messagesKey }),
+    onError: (error: Error) => toast.error(`Couldn't update message: ${error.message}`),
+  });
+}
+
+export function useDeleteMessage() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => deleteMessage(id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: messagesKey }),
+    onError: (error: Error) => toast.error(`Couldn't delete message: ${error.message}`),
+  });
+}
+
 export function useAdminStoreSettings() {
-  return useQuery({ queryKey: storeSettingsKey, queryFn: fetchStoreSettings });
+  return useQuery({
+    queryKey: [...storeSettingsKey, "admin"],
+    queryFn: fetchStoreSettingsOrThrow,
+    retry: false,
+  });
 }
 
 export function useUpdateStoreSettings() {
@@ -241,7 +307,12 @@ export function useUpdateStoreSettings() {
       if (error) throw error;
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: storeSettingsKey }),
-    onError: (error: Error) => toast.error(`Couldn't save settings: ${error.message}`),
+    onError: (error: Error) =>
+      toast.error(
+        /column/i.test(error.message)
+          ? `Couldn't save settings: ${error.message}. Run supabase/website_settings_migration.sql.`
+          : `Couldn't save settings: ${error.message}`,
+      ),
   });
 }
 

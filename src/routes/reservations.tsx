@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { phoneHref, useSiteSettings } from "@/lib/store-status";
 import { createReservation } from "@/lib/supabase-queries";
 import {
   Select,
@@ -41,9 +42,15 @@ const timeSlots = [
 function ReservationsPage() {
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const settings = useSiteSettings();
+  const paused = !settings.accepting_reservations;
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (paused) {
+      toast.error("We're not taking reservations online right now.");
+      return;
+    }
     const form = new FormData(e.currentTarget);
     const name = String(form.get("name") ?? "").trim();
     const email = String(form.get("email") ?? "").trim();
@@ -97,8 +104,8 @@ function ReservationsPage() {
         <p className="mt-4 max-w-md text-muted-foreground">
           Book a seat by the oven and watch the fire work its magic. For parties of 8 or more,
           call us directly at{" "}
-          <a href="tel:+15550123456" className="font-medium text-primary hover:underline">
-            +1 (555) 012-3456
+          <a href={phoneHref(settings.phone)} className="font-medium text-primary hover:underline">
+            {settings.phone}
           </a>.
         </p>
         <img
@@ -112,6 +119,12 @@ function ReservationsPage() {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-5 rounded-xl bg-card p-8 shadow-card">
+        {paused && (
+          <p className="rounded-lg bg-accent p-3 text-sm font-medium text-accent-foreground">
+            {settings.reservations_paused_message ||
+              `Online reservations are paused right now. Please call us at ${settings.phone}.`}
+          </p>
+        )}
         <div className="grid gap-5 sm:grid-cols-2">
           <div className="space-y-1.5">
             <Label htmlFor="name">Name *</Label>
@@ -171,7 +184,7 @@ function ReservationsPage() {
           />
         </div>
 
-        <Button type="submit" size="lg" className="w-full" disabled={submitting}>
+        <Button type="submit" size="lg" className="w-full" disabled={submitting || paused}>
           {submitting ? "Sending…" : "Request Reservation"}
         </Button>
         <p className="text-center text-xs text-muted-foreground">

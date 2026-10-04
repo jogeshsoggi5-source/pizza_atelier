@@ -15,6 +15,7 @@ import { reportLovableError } from "../lib/lovable-error-reporting";
 import { CartProvider } from "@/lib/cart-context";
 import { Navbar } from "@/components/site/Navbar";
 import { Footer } from "@/components/site/Footer";
+import { AnnouncementBar } from "@/components/site/AnnouncementBar";
 import { WelcomeSplash } from "@/components/site/WelcomeSplash";
 import { Toaster } from "@/components/ui/sonner";
 
@@ -159,6 +160,7 @@ function RootComponent() {
           <>
             {showSplash && <WelcomeSplash onComplete={handleSplashComplete} />}
             <div className="flex min-h-screen flex-col">
+              <AnnouncementBar />
               <Navbar />
               <main className="flex-1">
                 {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}

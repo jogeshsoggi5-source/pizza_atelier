@@ -15,7 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PizzaCard } from "@/components/site/PizzaCard";
 import { useCart } from "@/lib/cart-context";
-import { useSoldOut, useStoreSettings } from "@/lib/store-status";
+import { useSiteSettings, useSoldOut } from "@/lib/store-status";
 import { placeOrder } from "@/lib/supabase-queries";
 import {
   categoryLabels,
@@ -52,7 +52,6 @@ export const Route = createFileRoute("/order")({
 const categories = menuCategoryOrder.filter((c) =>
   menuItems.some((i) => i.category === c),
 );
-const DELIVERY_FEE = 49;
 const imageById = new Map(menuItems.map((item) => [item.id, item.image]));
 
 function AddRow({ item }: { item: MenuItem }) {
@@ -109,16 +108,25 @@ function OrderPage() {
   // The navbar cart icon opens ?view=cart: on mobile, show only the order summary.
   const cartOnly = view === "cart";
   const { items, updateQty, removeItem, clear, total, count } = useCart();
-  const [fulfillment, setFulfillment] = useState<"delivery" | "pickup">(
+  const [fulfillmentChoice, setFulfillment] = useState<"delivery" | "pickup">(
     "delivery",
   );
   const [placedOrder, setPlacedOrder] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const { data: settings } = useStoreSettings();
-  const ordersPaused = settings?.accepting_orders === false;
+  const settings = useSiteSettings();
+  // Delivery and pickup can each be switched off in /admin/settings.
+  const fulfillment = !settings.delivery_enabled
+    ? "pickup"
+    : !settings.pickup_enabled
+      ? "delivery"
+      : fulfillmentChoice;
+  const ordersPaused =
+    !settings.accepting_orders || (!settings.delivery_enabled && !settings.pickup_enabled);
+  const belowMinimum = items.length > 0 && total < settings.min_order_amount;
   const soldOut = useSoldOut();
 
-  const grandTotal = total + (fulfillment === "delivery" ? DELIVERY_FEE : 0);
+  const deliveryFee = fulfillment === "delivery" ? settings.delivery_fee : 0;
+  const grandTotal = total + deliveryFee;
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -128,6 +136,10 @@ function OrderPage() {
     }
     if (items.length === 0) {
       toast.error("Your cart is empty — add something delicious first!");
+      return;
+    }
+    if (belowMinimum) {
+      toast.error(`The minimum order is ${formatPrice(settings.min_order_amount)}.`);
       return;
     }
     const unavailable = items.find((i) => soldOut.has(i.productId ?? i.id));
@@ -144,7 +156,6 @@ function OrderPage() {
       return;
     }
     const orderNumber = `PA-${Date.now().toString(36).slice(-6).toUpperCase()}`;
-    const deliveryFee = fulfillment === "delivery" ? DELIVERY_FEE : 0;
     setSubmitting(true);
     const { error } = await placeOrder({
       order_number: orderNumber,
@@ -354,27 +365,40 @@ function OrderPage() {
               </ul>
             )}
 
-            <div className="mt-6 grid grid-cols-2 gap-2">
-              <Button
-                type="button"
-                variant={fulfillment === "delivery" ? "default" : "outline"}
-                onClick={() => setFulfillment("delivery")}
-              >
-                Delivery
-              </Button>
-              <Button
-                type="button"
-                variant={fulfillment === "pickup" ? "default" : "outline"}
-                onClick={() => setFulfillment("pickup")}
-              >
-                Pickup
-              </Button>
+            <div
+              className={`mt-6 grid gap-2 ${settings.delivery_enabled && settings.pickup_enabled ? "grid-cols-2" : "grid-cols-1"}`}
+            >
+              {settings.delivery_enabled && (
+                <Button
+                  type="button"
+                  variant={fulfillment === "delivery" ? "default" : "outline"}
+                  onClick={() => setFulfillment("delivery")}
+                >
+                  {settings.pickup_enabled ? "Delivery" : "Delivery only"}
+                </Button>
+              )}
+              {settings.pickup_enabled && (
+                <Button
+                  type="button"
+                  variant={fulfillment === "pickup" ? "default" : "outline"}
+                  onClick={() => setFulfillment("pickup")}
+                >
+                  {settings.delivery_enabled ? "Pickup" : "Pickup only"}
+                </Button>
+              )}
             </div>
 
             {ordersPaused && (
               <p className="mt-6 rounded-lg bg-accent p-3 text-sm font-medium text-accent-foreground">
-                {settings?.paused_message ||
+                {settings.paused_message ||
                   "Online ordering is paused right now. Please call us to order."}
+              </p>
+            )}
+
+            {belowMinimum && !ordersPaused && (
+              <p className="mt-6 rounded-lg bg-accent p-3 text-sm font-medium text-accent-foreground">
+                Minimum order is {formatPrice(settings.min_order_amount)} — add{" "}
+                {formatPrice(settings.min_order_amount - total)} more to check out.
               </p>
             )}
 
@@ -412,7 +436,7 @@ function OrderPage() {
                 {fulfillment === "delivery" && (
                   <div className="flex justify-between text-muted-foreground">
                     <span>Delivery fee</span>
-                    <span>{formatPrice(DELIVERY_FEE)}</span>
+                    <span>{formatPrice(deliveryFee)}</span>
                   </div>
                 )}
                 <div className="flex justify-between text-base font-semibold">
@@ -425,7 +449,7 @@ function OrderPage() {
                 type="submit"
                 size="lg"
                 className="w-full"
-                disabled={submitting || ordersPaused}
+                disabled={submitting || ordersPaused || belowMinimum}
               >
                 {submitting ? "Placing order…" : `Place Order — ${formatPrice(grandTotal)}`}
               </Button>
