@@ -10,6 +10,7 @@ import {
   storeSettingsKey,
   type StoreSettings,
 } from "@/lib/store-status";
+import { sendOrderConfirmationSms, type SmsResult } from "@/lib/order-sms";
 import { supabase } from "@/lib/supabase";
 import type { OrderLine } from "@/lib/supabase-queries";
 
@@ -52,6 +53,10 @@ export interface AdminOrder {
   delivery_address: string | null;
   status: OrderStatus;
   created_at: string;
+  /** Added by supabase/order_tracking_migration.sql; undefined until it's run. */
+  receipt_token?: string | null;
+  sms_sent_at?: string | null;
+  sms_error?: string | null;
 }
 
 export interface AdminReservation {
@@ -97,17 +102,24 @@ export function useAdminSession() {
         if (active) setState({ loading: false, session: null, isAdmin: false });
         return;
       }
-      const { data } = await supabase
-        .from("admins")
-        .select("user_id")
-        .eq("user_id", session.user.id)
-        .maybeSingle();
-      if (active) setState({ loading: false, session, isAdmin: !!data });
+      try {
+        const { data } = await supabase
+          .from("admins")
+          .select("user_id")
+          .eq("user_id", session.user.id)
+          .maybeSingle();
+        if (active) setState({ loading: false, session, isAdmin: !!data });
+      } catch {
+        if (active) setState({ loading: false, session, isAdmin: false });
+      }
     };
 
-    supabase.auth.getSession().then(({ data }: { data: { session: Session | null } }) =>
-      resolve(data.session),
-    );
+    // If the session check fails (e.g. a flaky mobile connection), show the login form
+    // instead of leaving the spinner up forever.
+    supabase.auth
+      .getSession()
+      .then(({ data }: { data: { session: Session | null } }) => resolve(data.session))
+      .catch(() => resolve(null));
     const { data: sub } = supabase.auth.onAuthStateChange(
       (_event: string, session: Session | null) => {
         // Defer so we don't query Supabase from inside its own auth callback.
@@ -135,9 +147,8 @@ export async function signOut() {
 export async function fetchOrders(): Promise<AdminOrder[]> {
   const { data, error } = await requireClient()
     .from("orders")
-    .select(
-      "id, order_number, customer_name, customer_phone, items, total_amount, delivery_fee, grand_total, fulfillment_type, delivery_address, status, created_at",
-    )
+    // "*" rather than a column list so optional columns from later migrations don't break this.
+    .select("*")
     // Analytics looks back at most 90 days; Supabase caps a request at 1000 rows.
     .gte("created_at", new Date(Date.now() - 90 * 86_400_000).toISOString())
     .order("created_at", { ascending: false })
@@ -149,6 +160,7 @@ export async function fetchOrders(): Promise<AdminOrder[]> {
     delivery_fee: Number(o.delivery_fee),
     grand_total: Number(o.grand_total),
     created_at: asUtc(o.created_at),
+    sms_sent_at: o.sms_sent_at ? asUtc(o.sms_sent_at) : null,
   }));
 }
 
@@ -237,13 +249,52 @@ export function useOrders() {
   return useQuery({ queryKey: ordersKey, queryFn: fetchOrders, refetchInterval: 15_000 });
 }
 
+/** Asks the server to text the customer their confirmation and bill (see lib/order-sms.ts). */
+export async function sendOrderSms(orderId: string, force = false): Promise<SmsResult> {
+  const { data } = await requireClient().auth.getSession();
+  const accessToken = data.session?.access_token;
+  if (!accessToken) return { status: "failed", error: "Your session expired — sign in again" };
+  return sendOrderConfirmationSms({
+    data: { orderId, accessToken, origin: window.location.origin, force },
+  });
+}
+
+function reportSms(result: SmsResult, phone?: string | null) {
+  if (result.status === "sent") toast.success(`Confirmation SMS sent${phone ? ` to ${phone}` : ""}`);
+  else if (result.status === "not_configured")
+    toast.message("Order confirmed — SMS not sent", {
+      description: "Add an SMS provider key to text customers automatically. See Settings → SMS.",
+    });
+  else if (result.status === "failed") toast.error(`SMS not sent: ${result.error}`);
+}
+
 export function useOrderStatusMutation() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, status }: { id: string; status: OrderStatus }) =>
+    mutationFn: ({ id, status }: { id: string; status: OrderStatus; phone?: string | null }) =>
       setOrderStatus(id, status),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ordersKey }),
+    onSuccess: (_data, { id, status, phone }) => {
+      queryClient.invalidateQueries({ queryKey: ordersKey });
+      // Text the customer automatically the first time an order is confirmed.
+      if (status === "confirmed") {
+        sendOrderSms(id)
+          .then((result) => reportSms(result, phone))
+          .catch((error: Error) => toast.error(`SMS not sent: ${error.message}`))
+          .finally(() => queryClient.invalidateQueries({ queryKey: ordersKey }));
+      }
+    },
     onError: (error: Error) => toast.error(`Couldn't update order: ${error.message}`),
+  });
+}
+
+/** Manually (re)sends the confirmation SMS from the order card. */
+export function useResendOrderSms() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id }: { id: string; phone?: string | null }) => sendOrderSms(id, true),
+    onSuccess: (result, { phone }) => reportSms(result, phone),
+    onError: (error: Error) => toast.error(`SMS not sent: ${error.message}`),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ordersKey }),
   });
 }
 

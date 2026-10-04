@@ -92,7 +92,7 @@ function AdminLayout() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-charcoal">
+      <div className="flex min-h-dvh items-center justify-center bg-charcoal">
         <Loader2 className="h-6 w-6 animate-spin text-gold" />
       </div>
     );
@@ -366,17 +366,21 @@ function LoginForm() {
 
 function AuthScreen({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-charcoal px-4">
-      <div className="pointer-events-none absolute -top-40 left-1/2 h-96 w-[40rem] -translate-x-1/2 rounded-full bg-gold/10 blur-3xl" />
-      <div className="pointer-events-none absolute -bottom-40 right-0 h-80 w-80 rounded-full bg-primary/15 blur-3xl" />
-      <div className="relative w-full max-w-sm rounded-2xl border border-cream/10 bg-cream/[0.03] p-8 text-center shadow-2xl backdrop-blur">
-        <p className="font-logo text-3xl font-semibold tracking-wide text-cream">
+    // 100dvh tracks the visible area on phones (address bar, keyboard); the page scrolls
+    // instead of clipping when the card is taller than the screen.
+    <div className="relative flex min-h-dvh items-center justify-center bg-charcoal px-4 py-8">
+      <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden>
+        <div className="absolute -top-40 left-1/2 h-96 w-[40rem] max-w-[150vw] -translate-x-1/2 rounded-full bg-gold/10 blur-3xl" />
+        <div className="absolute -bottom-40 right-0 h-80 w-80 rounded-full bg-primary/15 blur-3xl" />
+      </div>
+      <div className="relative w-full max-w-sm rounded-2xl border border-cream/10 bg-cream/[0.03] p-6 text-center shadow-2xl backdrop-blur sm:p-8">
+        <p className="font-logo text-2xl font-semibold tracking-wide text-cream sm:text-3xl">
           Pizza <span className="text-gold">Atelier</span>
         </p>
         <p className="mt-1 text-[10px] font-semibold uppercase tracking-[0.3em] text-cream/40">
           Control Room
         </p>
-        <h1 className="mb-7 mt-5 text-sm text-cream/60">{title}</h1>
+        <h1 className="mb-6 mt-4 text-sm text-cream/60 sm:mb-7 sm:mt-5">{title}</h1>
         {children}
       </div>
     </div>

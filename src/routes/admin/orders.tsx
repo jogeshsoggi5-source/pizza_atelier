@@ -3,8 +3,10 @@ import {
   Bike,
   Download,
   MapPin,
+  MessageSquare,
   Phone,
   Printer,
+  ReceiptText,
   RefreshCw,
   Search,
   ShoppingBag,
@@ -30,11 +32,13 @@ import {
   orderStatuses,
   printKitchenTicket,
   useOrderStatusMutation,
+  useResendOrderSms,
   useOrders,
   type AdminOrder,
   type OrderStatus,
 } from "@/lib/admin-api";
 import { formatPrice } from "@/lib/menu-data";
+import { receiptPath } from "@/lib/order-tracking";
 
 export const Route = createFileRoute("/admin/orders")({
   component: AdminOrdersPage,
@@ -143,8 +147,10 @@ function AdminOrdersPage() {
 
 function OrderCard({ order }: { order: AdminOrder }) {
   const mutation = useOrderStatusMutation();
+  const resend = useResendOrderSms();
   const next = nextStatus[order.status];
-  const update = (status: OrderStatus) => mutation.mutate({ id: order.id, status });
+  const update = (status: OrderStatus) =>
+    mutation.mutate({ id: order.id, status, phone: order.customer_phone });
 
   return (
     <Panel className={`p-4 sm:p-5 ${order.status === "pending" ? "ring-2 ring-gold/50" : ""}`}>
@@ -245,6 +251,38 @@ function OrderCard({ order }: { order: AdminOrder }) {
           <Printer className="h-4 w-4" /> Print ticket
         </Button>
       </div>
+
+      {order.status !== "pending" && order.status !== "cancelled" && order.customer_phone && (
+        <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+          <MessageSquare className="h-3.5 w-3.5" />
+          {order.sms_sent_at ? (
+            <span className="text-secondary">
+              Confirmation SMS sent{" "}
+              {new Date(order.sms_sent_at).toLocaleTimeString(undefined, { timeStyle: "short" })}
+            </span>
+          ) : order.sms_error ? (
+            <span className="text-primary">SMS failed: {order.sms_error}</span>
+          ) : (
+            <span>No SMS sent</span>
+          )}
+          <button
+            type="button"
+            className="font-medium text-foreground underline-offset-2 hover:underline disabled:opacity-50"
+            disabled={resend.isPending}
+            onClick={() => resend.mutate({ id: order.id, phone: order.customer_phone })}
+          >
+            {resend.isPending ? "Sending…" : order.sms_sent_at ? "Resend" : "Send SMS"}
+          </button>
+          <a
+            href={receiptPath(order.order_number, order.receipt_token)}
+            target="_blank"
+            rel="noreferrer"
+            className="ml-auto inline-flex items-center gap-1 font-medium text-foreground underline-offset-2 hover:underline"
+          >
+            <ReceiptText className="h-3.5 w-3.5" /> Customer receipt
+          </a>
+        </div>
+      )}
     </Panel>
   );
 }

@@ -1,3 +1,4 @@
+import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { Plus, Trash2 } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
@@ -10,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { useAdminStoreSettings, useUpdateStoreSettings } from "@/lib/admin-api";
+import { getSmsStatus } from "@/lib/order-sms";
 import type { OpeningHours, StoreSettings } from "@/lib/store-status";
 
 export const Route = createFileRoute("/admin/settings")({
@@ -44,6 +46,7 @@ function SettingsPage() {
           </div>
           <div className="space-y-6">
             <BusinessInfoPanel settings={settings} />
+            <SmsPanel />
             <AdminAccessPanel />
           </div>
         </div>
@@ -514,6 +517,59 @@ function BusinessInfoPanel({ settings }: { settings: StoreSettings }) {
           </Button>
         </div>
       </div>
+    </Panel>
+  );
+}
+
+const providerNames = { fast2sms: "Fast2SMS", twilio: "Twilio" } as const;
+
+function SmsPanel() {
+  const { data, isLoading, error } = useQuery({
+    queryKey: ["admin", "sms-status"],
+    queryFn: () => getSmsStatus(),
+  });
+  const provider = data?.provider;
+
+  return (
+    <Panel
+      title="SMS notifications"
+      action={
+        !isLoading && (
+          <span
+            className={
+              provider
+                ? "rounded-full bg-secondary/10 px-2.5 py-0.5 text-xs font-semibold text-secondary"
+                : "rounded-full bg-muted px-2.5 py-0.5 text-xs font-semibold text-muted-foreground"
+            }
+          >
+            {provider ? `On · ${providerNames[provider]}` : "Not set up"}
+          </span>
+        )
+      }
+    >
+      <p className="text-sm text-muted-foreground">
+        When you confirm an order, the customer gets a text with their order number, an itemised
+        bill and a link to track the order and view their receipt.
+      </p>
+      {error && <p className="mt-3 text-sm text-primary">{(error as Error).message}</p>}
+      {!isLoading && !provider && (
+        <div className="mt-4 space-y-2 text-sm text-muted-foreground">
+          <p className="font-medium text-foreground">To turn it on, add one provider's keys:</p>
+          <ul className="list-disc space-y-1 pl-5">
+            <li>
+              <b>Fast2SMS</b> (India): <code>FAST2SMS_API_KEY</code>
+            </li>
+            <li>
+              <b>Twilio</b>: <code>TWILIO_ACCOUNT_SID</code>, <code>TWILIO_AUTH_TOKEN</code>,{" "}
+              <code>TWILIO_FROM</code>
+            </li>
+          </ul>
+          <p>
+            Add them in Vercel → Settings → Environment Variables (or <code>.env</code> locally),
+            set <code>SITE_URL</code> to your website address, then redeploy.
+          </p>
+        </div>
+      )}
     </Panel>
   );
 }

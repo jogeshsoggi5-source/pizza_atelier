@@ -6,7 +6,7 @@ export function AnnouncementBar() {
   if (!announcement?.trim()) return null;
 
   return (
-    <div className="bg-primary px-4 py-2 text-center text-sm font-medium text-primary-foreground">
+    <div className="bg-primary print:hidden px-4 py-2 text-center text-sm font-medium text-primary-foreground">
       {announcement}
     </div>
   );

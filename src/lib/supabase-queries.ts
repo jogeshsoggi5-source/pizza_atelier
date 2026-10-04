@@ -131,12 +131,20 @@ export const placeOrder = async (order: {
   grand_total: number
   fulfillment_type: 'delivery' | 'pickup'
   delivery_address?: string
+  /** Secret for the SMS tracking link; see supabase/order_tracking_migration.sql. */
+  receipt_token?: string
 }) => {
   if (!supabase) return { error: new Error('Supabase not configured') }
 
-  const { error } = await supabase
+  let { error } = await supabase
     .from('orders')
     .insert([{ ...order, status: 'pending' }])
+
+  // Before order_tracking_migration.sql is run the column doesn't exist; still take the order.
+  if (error && order.receipt_token && /receipt_token/.test(error.message ?? '')) {
+    const { receipt_token: _token, ...rest } = order
+    ;({ error } = await supabase.from('orders').insert([{ ...rest, status: 'pending' }]))
+  }
 
   return { error }
 }

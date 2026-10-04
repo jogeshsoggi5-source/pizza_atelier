@@ -7,7 +7,7 @@ export function Footer() {
   const settings = useSiteSettings();
 
   return (
-    <footer className="bg-charcoal text-cream">
+    <footer className="bg-charcoal text-cream print:hidden">
       <div className="container mx-auto grid gap-10 px-4 py-14 md:grid-cols-4">
         <div>
           <p className="font-logo text-2xl font-semibold">
@@ -30,6 +30,7 @@ export function Footer() {
           <ul className="mt-4 space-y-2 text-sm text-cream/70">
             <li><Link to="/menu" className="transition-colors hover:text-gold">Menu</Link></li>
             <li><Link to="/order" className="transition-colors hover:text-gold">Order Online</Link></li>
+            <li><Link to="/track" className="transition-colors hover:text-gold">Track Order</Link></li>
             <li><Link to="/reservations" className="transition-colors hover:text-gold">Reservations</Link></li>
             <li><Link to="/gallery" className="transition-colors hover:text-gold">Gallery</Link></li>
             <li><Link to="/about" className="transition-colors hover:text-gold">Our Story</Link></li>

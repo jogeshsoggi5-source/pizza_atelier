@@ -13,6 +13,7 @@ const navLinks = [
   { to: "/gallery", label: "Gallery" },
   { to: "/reservations", label: "Reservations" },
   { to: "/contact", label: "Contact" },
+  { to: "/track", label: "Track Order" },
 ] as const;
 
 export function Navbar() {
@@ -20,7 +21,7 @@ export function Navbar() {
   const [open, setOpen] = useState(false);
 
   return (
-    <header className="sticky top-0 z-50 border-b border-border/40 bg-background/95 backdrop-blur-lg shadow-sm">
+    <header className="sticky top-0 z-50 print:hidden border-b border-border/40 bg-background/95 backdrop-blur-lg shadow-sm">
       <div className="container mx-auto flex h-16 items-center justify-between px-4 md:h-20">
         <Link
           to="/"
@@ -31,7 +32,7 @@ export function Navbar() {
           </span>
         </Link>
 
-        <nav className="hidden items-center gap-8 lg:flex">
+        <nav className="hidden items-center gap-6 lg:flex xl:gap-8">
           {navLinks.map((link) => (
             <Link
               key={link.to}

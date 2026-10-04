@@ -18,6 +18,7 @@ import { Route as MenuRouteImport } from './routes/menu'
 import { Route as OrderRouteImport } from './routes/order'
 import { Route as ReservationsRouteImport } from './routes/reservations'
 import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
+import { Route as TrackRouteImport } from './routes/track'
 import { Route as AdminIndexRouteImport } from './routes/admin/index'
 import { Route as AdminAnalyticsRouteImport } from './routes/admin/analytics'
 import { Route as AdminCustomersRouteImport } from './routes/admin/customers'
@@ -71,6 +72,11 @@ const ReservationsRoute = ReservationsRouteImport.update({
 const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
   id: '/sitemap.xml',
   path: '/sitemap.xml',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TrackRoute = TrackRouteImport.update({
+  id: '/track',
+  path: '/track',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AdminIndexRoute = AdminIndexRouteImport.update({
@@ -129,6 +135,7 @@ export interface FileRoutesByFullPath {
   '/order': typeof OrderRoute
   '/reservations': typeof ReservationsRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
+  '/track': typeof TrackRoute
   '/admin/analytics': typeof AdminAnalyticsRoute
   '/admin/customers': typeof AdminCustomersRoute
   '/admin/kitchen': typeof AdminKitchenRoute
@@ -148,6 +155,7 @@ export interface FileRoutesByTo {
   '/order': typeof OrderRoute
   '/reservations': typeof ReservationsRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
+  '/track': typeof TrackRoute
   '/admin/analytics': typeof AdminAnalyticsRoute
   '/admin/customers': typeof AdminCustomersRoute
   '/admin/kitchen': typeof AdminKitchenRoute
@@ -169,6 +177,7 @@ export interface FileRoutesById {
   '/order': typeof OrderRoute
   '/reservations': typeof ReservationsRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
+  '/track': typeof TrackRoute
   '/admin/analytics': typeof AdminAnalyticsRoute
   '/admin/customers': typeof AdminCustomersRoute
   '/admin/kitchen': typeof AdminKitchenRoute
@@ -191,6 +200,7 @@ export interface FileRouteTypes {
     | '/order'
     | '/reservations'
     | '/sitemap.xml'
+    | '/track'
     | '/admin/analytics'
     | '/admin/customers'
     | '/admin/kitchen'
@@ -210,6 +220,7 @@ export interface FileRouteTypes {
     | '/order'
     | '/reservations'
     | '/sitemap.xml'
+    | '/track'
     | '/admin/analytics'
     | '/admin/customers'
     | '/admin/kitchen'
@@ -230,6 +241,7 @@ export interface FileRouteTypes {
     | '/order'
     | '/reservations'
     | '/sitemap.xml'
+    | '/track'
     | '/admin/analytics'
     | '/admin/customers'
     | '/admin/kitchen'
@@ -251,6 +263,7 @@ export interface RootRouteChildren {
   OrderRoute: typeof OrderRoute
   ReservationsRoute: typeof ReservationsRoute
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
+  TrackRoute: typeof TrackRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -316,6 +329,13 @@ declare module '@tanstack/react-router' {
       path: '/sitemap.xml'
       fullPath: '/sitemap.xml'
       preLoaderRoute: typeof SitemapDotxmlRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/track': {
+      id: '/track'
+      path: '/track'
+      fullPath: '/track'
+      preLoaderRoute: typeof TrackRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin/': {
@@ -422,6 +442,7 @@ const rootRouteChildren: RootRouteChildren = {
   OrderRoute: OrderRoute,
   ReservationsRoute: ReservationsRoute,
   SitemapDotxmlRoute: SitemapDotxmlRoute,
+  TrackRoute: TrackRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

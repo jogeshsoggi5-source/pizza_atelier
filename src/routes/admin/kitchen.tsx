@@ -118,7 +118,7 @@ function TicketCard({ order, now }: { order: AdminOrder; now: number }) {
             size="sm"
             className="h-8 flex-1 capitalize"
             disabled={mutation.isPending}
-            onClick={() => mutation.mutate({ id: order.id, status: next })}
+            onClick={() => mutation.mutate({ id: order.id, status: next, phone: order.customer_phone })}
           >
             {next === "completed" ? "Hand over" : `Mark ${next}`}
           </Button>

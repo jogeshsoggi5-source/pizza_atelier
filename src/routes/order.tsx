@@ -15,6 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PizzaCard } from "@/components/site/PizzaCard";
 import { useCart } from "@/lib/cart-context";
+import { rememberOrder } from "@/lib/order-tracking";
 import { useSiteSettings, useSoldOut } from "@/lib/store-status";
 import { placeOrder } from "@/lib/supabase-queries";
 import {
@@ -111,7 +112,9 @@ function OrderPage() {
   const [fulfillmentChoice, setFulfillment] = useState<"delivery" | "pickup">(
     "delivery",
   );
-  const [placedOrder, setPlacedOrder] = useState<string | null>(null);
+  const [placedOrder, setPlacedOrder] = useState<{ number: string; token?: string } | null>(
+    null,
+  );
   const [submitting, setSubmitting] = useState(false);
   const settings = useSiteSettings();
   // Delivery and pickup can each be switched off in /admin/settings.
@@ -156,6 +159,9 @@ function OrderPage() {
       return;
     }
     const orderNumber = `PA-${Date.now().toString(36).slice(-6).toUpperCase()}`;
+    // Secret for the tracking link; randomUUID needs a secure context (https / localhost).
+    const receiptToken =
+      typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : undefined;
     setSubmitting(true);
     const { error } = await placeOrder({
       order_number: orderNumber,
@@ -175,6 +181,7 @@ function OrderPage() {
       grand_total: total + deliveryFee,
       fulfillment_type: fulfillment,
       delivery_address: fulfillment === "delivery" ? address : undefined,
+      receipt_token: receiptToken,
     });
     setSubmitting(false);
     if (error) {
@@ -182,7 +189,8 @@ function OrderPage() {
       toast.error("We couldn't place your order. Please try again or call us.");
       return;
     }
-    setPlacedOrder(orderNumber);
+    rememberOrder(orderNumber, receiptToken);
+    setPlacedOrder({ number: orderNumber, token: receiptToken });
     clear();
   };
 
@@ -196,14 +204,28 @@ function OrderPage() {
           </h1>
           <p className="mt-3 text-muted-foreground">
             Your order{" "}
-            <span className="font-semibold text-foreground">{placedOrder}</span>{" "}
-            is in the oven.{" "}
+            <span className="font-semibold text-foreground">{placedOrder.number}</span>{" "}
+            has been received.{" "}
             {fulfillment === "delivery"
               ? "It will be at your door in about 30–40 minutes."
-              : "It will be ready for pickup in about 20 minutes."}
+              : "It will be ready for pickup in about 20 minutes."}{" "}
+            We'll text you as soon as the kitchen confirms it.
+          </p>
+          <p className="mt-3 text-sm text-muted-foreground">
+            Save your order number to track it anytime.
           </p>
           <div className="mt-8 flex flex-wrap justify-center gap-3">
-            <Button onClick={() => setPlacedOrder(null)}>Order Again</Button>
+            <Button asChild>
+              <Link
+                to="/track"
+                search={{ order: placedOrder.number, ...(placedOrder.token && { t: placedOrder.token }) }}
+              >
+                Track Your Order
+              </Link>
+            </Button>
+            <Button variant="outline" onClick={() => setPlacedOrder(null)}>
+              Order Again
+            </Button>
             <Button asChild variant="outline">
               <Link to="/">Back to Home</Link>
             </Button>
